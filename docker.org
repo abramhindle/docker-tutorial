@@ -1,0 +1,137 @@
+* Docker
+** Isolation
+   - It's awesome to run code seperate from other code.
+   - It's awesome to have a clean system.
+   - Doesn't it stink when it works for you, it compiles but not for your teammates?
+     - Your system has a state that the other systems do not share.
+   - It's awesome to not worry about programs wrecking where your program is working
+   - It's nice to be nearly root on a system and have that control
+   - It's nice to have seperate networking from other programs
+   - It's nice to have control over how files are shared.
+   - Security wise isolation is great. Reduce what secrets get lost.
+** Old Solution?
+   - Virtual Machines and Hypervisors.
+     - OpenStack on KVM and XEN 
+       - Runs VMs, many on 1 box.
+     - VMWare and Virtualbox and Qemu
+       - Runs arbitary VMs 
+   - Disadvantages
+     - Poor performance communicating between VMs
+     - Static memory allocations
+     - Too much copying between memory
+     - Hard to manage
+     - Energy ineffecient
+     - Various overheads
+** Containers?
+   - Instead of a VM make a private slice of an OS
+     - Android tries this with apps, give each app a jail.
+     - OpenVZ was popular on Virtual Private Servers.
+     - FreeBSD Jails make little slices of the OS
+   - Might lack isolation.
+     - I got told by 1 sysadmin to had to start screen later because I was stealing their TTYs.
+       - Effectively if I was smart enough I had root access to the host OS on my VPS.
+   - Better performance
+     - less hardware support needed
+     - software based restrictions
+** What is Docker?
+   - Container software
+     - Build containers that can even be VMs   
+** Docker Immediate Benefits
+   - Configuration is repeatable
+   - Configuration is codified
+   - Configuration is distributed
+   - Configuration is version controllable
+   - Rebuilding is easy
+** Docker for my project?
+   - It took 1 day of configuring a box and turned it into 2-3 hours
+     of compilation after I told it to build.
+   - I didn't have to watch it.
+** Docker concepts
+   - Image
+     - This is a base installtion of software. It is the prototype.
+       - Think CLASS in OO
+   - Container
+     - This is a copy of your image running, or just run. It has
+       state. It inherits initial state from the image.
+     - Think instance in OO
+   - Hub
+     - contains named/tagged images
+     - ubuntu:16.04 is a named image
+** Docker images
+#+BEGIN_EXAMPLE
+hindle1@st-francis:~$ docker images
+REPOSITORY                TAG                 IMAGE ID            CREATED             SIZE
+yourpalal/bug-dedup       elasticsearch       016c8daa6fd0        14 months ago       3.72GB
+mnaylor/base              latest              246207b8299f        14 months ago       2.56GB
+<none>                    <none>              e5f0203d6768        14 months ago       3.64GB
+yourpalal/es              bugparty            2a75f346918e        20 months ago       905MB
+yourpalal/bugparty_data   latest              802c2bd1d1ac        20 months ago       127MB
+<none>                    <none>              103f10daa82c        22 months ago       466MB
+cmput404                  latest              4db7e63db54a        2 years ago         520MB
+<none>                    <none>              23a5120cd0e9        2 years ago         520MB
+<none>                    <none>              471fc1e495c8        2 years ago         515MB
+<none>                    <none>              c9ce8fa6f168        2 years ago         515MB
+<none>                    <none>              c830d159c8d3        2 years ago         635MB
+<none>                    <none>              b98b64e0ef71        2 years ago         456MB
+<none>                    <none>              883e1dc2e7cf        2 years ago         451MB
+ubuntu                    16.04               f753707788c5        2 years ago         127MB
+ubuntu                    latest              45bc58500fa3        2 years ago         127MB
+<none>                    <none>              5299b8f44240        2 years ago         3.43GB
+<none>                    <none>              5210b90d708e        2 years ago         3.43GB
+<none>                    <none>              e094d3cd80b2        2 years ago         3.43GB
+<none>                    <none>              778192f9afd7        2 years ago         188MB
+<none>                    <none>              5e3ee7aeb36c        2 years ago         787MB
+<none>                    <none>              7048d93516d8        2 years ago         2.05GB
+<none>                    <none>              8b73e95e6306        2 years ago         2.05GB
+<none>                    <none>              17738fff393c        2 years ago         2.01GB
+<none>                    <none>              dfa1acfe2871        2 years ago         2.01GB
+ubuntu                    14.04               90d5884b1ee0        2 years ago         188MB
+<none>                    <none>              e637dbc81d51        2 years ago         471MB
+ubuntu                    14.04.3             31a5b7fe99fe        3 years ago         188MB
+#+END_EXAMPLE
+
+** Get a docker image?
+   - Ask for it:
+     - docker run -i -t ubuntu:18.04 /bin/bash
+     - docker run -i -t ubuntu:18.10 /bin/bash
+     - docker run -i -t ubuntu:16.04 /bin/bash
+** Former Docker Containers
+#+BEGIN_EXAMPLE
+hindle1@st-francis:~$ docker ps -a
+CONTAINER ID        IMAGE                     COMMAND                  CREATED             STATUS                      PORTS               NAMES
+137fc7b584b4        yourpalal/bugparty_data   "ls"                     11 months ago       Exited (0) 11 months ago                        nostalgic_mirzakhani
+467028c9b283        yourpalal/bugparty_data   "-t ls"                  11 months ago       Created                                         elated_snyder
+c3203de31520        yourpalal/bugparty_data   "ls"                     11 months ago       Exited (0) 11 months ago                        friendly_bartik
+935402cac270        yourpalal/bugparty_data   "/bin/bash"              14 months ago       Exited (137) 4 months ago                       data
+3495bac911c7        yourpalal/es:bugparty     "elasticsearch start"    14 months ago       Exited (137) 4 months ago                       es
+e39f0aef055d        6e835aedd2a0              "/bin/sh -c 'cd && w…"   14 months ago       Exited (8) 14 months ago                        quirky_fermi
+d9c2c4ba21d5        b22ae95e7638              "/bin/sh -c 'apt-get…"   14 months ago       Created                                         elated_darwin
+b370a7d5d8d5        e45aae93eaa5              "/bin/sh -c 'apt-get…"   14 months ago       Created                                         pensive_kowalevski
+49faed4f5aee        e45aae93eaa5              "/bin/sh -c 'apt-get…"   14 months ago       Created                                         cocky_hypatia
+bc109f6836e4        e45aae93eaa5              "/bin/sh -c 'apt-get…"   14 months ago       Created                                         furious_austin
+00161eef09c3        83d38eb6f87f              "/bin/sh -c 'apt-get…"   14 months ago       Exited (0) 14 months ago                        suspicious_lalande
+3f5efe89f4a3        83d38eb6f87f              "/bin/sh -c 'apt-get…"   14 months ago       Exited (0) 14 months ago                        nauseous_saha
+6f4ef40ae57e        83d38eb6f87f              "/bin/sh -c 'apt-get…"   14 months ago       Exited (0) 14 months ago                        jovial_mcnulty
+a1bf805886d6        9fc521788c25              "/bin/bash"              20 months ago       Exited (0) 20 months ago                        suspicious_thompson
+de2563b9e5f5        9fc521788c25              "/bin/bash"              20 months ago       Exited (0) 20 months ago                        grave_bell
+30be9da27c78        7768621920ec              "/bin/sh -c 'apt-get…"   20 months ago       Exited (0) 20 months ago                        stoic_bell
+d072c1ef15e1        f33b29bb2a69              "/bin/sh -c 'apt-get…"   20 months ago       Exited (0) 20 months ago                        fervent_heyrovsky
+5415e9669d76        f33b29bb2a69              "/bin/sh -c 'apt-get…"   20 months ago       Exited (0) 20 months ago                        prickly_meitner
+#+END_EXAMPLE
+
+** Simple Start
+   - Let's make a docker container that has python 3.7 in it
+*** Need a Dockerfile!
+#+BEGIN_EXAMPLE
+# This is python3.7/Dockerfile
+FROM ubuntu:18.10
+MAINTAINER Abram Hindle hindle1@ualberta.ca
+FROM ubuntu:18.10
+RUN apt-get update
+RUN apt-get upgrade -y
+RUN apt-get install -y python3.7 python3.7-dev python3.7-setuptools python3.7-pip curl wget git vim 
+#+END_EXAMPLE
+*** Run
+#+BEGIN_EXAMPLE
+
+#+END_EXAMPLE
