@@ -457,4 +457,15 @@ docker run --rm --name "$bugparty_name" -t -i \
    - Docker allows private networking for an app
    - Docker allows easier build and deployment
    - Rigid and replicable configuration of environment
-
+*** I use Docker for:
+    - GNURADIO Dependencies
+    - Computer Music in the Cloud
+    - Distributing copies of my software engineering experiments to run in parallel in the cloud
+    - To mark 404 assignments
+    - To distribute my own software with flakey dependencies
+    - To isolate software from my computer
+    - To run software that wants a newer OS when I don't want a VM and don't want to upgrade
+*** Docker caveats
+    - Docker is not versioned very well
+    - Dependencies change, you might want to back up existing images
+    - Same invocations can change state if there are remote dependencies
