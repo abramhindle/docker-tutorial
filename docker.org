@@ -1,3 +1,8 @@
+#+TITLE:       Abram's Docker Tutorial
+#+AUTHOR:      Abram Hindle
+#+DATE:        <2019-02-05 Tue>
+#+EMAIL:       hindle1@ualberta.ca
+
 * Docker
 ** Isolation
    - It's awesome to run code seperate from other code.
@@ -54,6 +59,10 @@
      - This is a copy of your image running, or just run. It has
        state. It inherits initial state from the image.
      - Think instance in OO
+     - Container inherits from Image
+     - Containers have local state
+     - Many containers are related to 1 image
+     - 1 image is related to many containers
    - Hub
      - contains named/tagged images
      - ubuntu:16.04 is a named image
@@ -95,6 +104,17 @@ ubuntu                    14.04.3             31a5b7fe99fe        3 years ago   
      - docker run -i -t ubuntu:18.04 /bin/bash
      - docker run -i -t ubuntu:18.10 /bin/bash
      - docker run -i -t ubuntu:16.04 /bin/bash
+   #+BEGIN_EXAMPLE
+   hindle1@frail:~$ docker run -i -t ubuntu:18.10
+   Unable to find image 'ubuntu:18.10' locally
+   18.10: Pulling from library/ubuntu
+   d99447cbf437: Pull complete 
+   2098e7a4835a: Pull complete 
+   fbffa09488c3: Pull complete 
+   dd1585ab64de: Pull complete 
+   Digest: sha256:cbf9640471a632684d0ce725312c56f18d9ff750e376a2a19613e242463b1b97
+   Status: Downloaded newer image for ubuntu:18.10
+   #+END_EXAMPLE
 ** Former Docker Containers
 #+BEGIN_EXAMPLE
 hindle1@st-francis:~$ docker ps -a
@@ -124,14 +144,317 @@ d072c1ef15e1        f33b29bb2a69              "/bin/sh -c 'apt-get…"   20 mont
 *** Need a Dockerfile!
 #+BEGIN_EXAMPLE
 # This is python3.7/Dockerfile
-FROM ubuntu:18.10
+# This is python3.7/Dockerfile
+FROM ubuntu:19.04
 MAINTAINER Abram Hindle hindle1@ualberta.ca
-FROM ubuntu:18.10
 RUN apt-get update
 RUN apt-get upgrade -y
-RUN apt-get install -y python3.7 python3.7-dev python3.7-setuptools python3.7-pip curl wget git vim 
+RUN apt-get install -y python3 python3-distutils python3-dev curl wget git vim
+# RUN apt-get install -y python3-pip
 #+END_EXAMPLE
 *** Run
 #+BEGIN_EXAMPLE
-
+cd python3.7
+docker build . -t python3.7
+docker run -i -t python3.7 /bin/bash
 #+END_EXAMPLE
+*** Demonstrate
+    - local python is different
+    - network connection
+
+** Marking Example
+*** run.sh
+#+BEGIN_EXAMPLE
+python -m SimpleHTTPServer &
+ID=$!
+for file in html/*/*.html
+do
+echo $file
+bash one-run.sh $file
+done
+kill $ID
+#+END_EXAMPLE
+*** arb.sh
+#+BEGIN_EXAMPLE
+#!/bin/bash
+# this runs within the container and gets runtest.sh
+cd /home/me
+/usr/bin/wget http://172.17.0.1:8000/runtest.sh
+/bin/bash runtest.sh $1
+if [ "$2" == 1 ];
+then
+	/bin/bash
+fi
+#+END_EXAMPLE
+*** runtest.sh
+#+BEGIN_SRC bash
+#!/bin/bash
+# this clones your assignment, removes test files and redownloads my test files
+# then runs the code
+REPO=$1
+git clone $1 ass1
+cd ass1
+rm runner.sh
+rm not-free-tests.py
+rm freetests.py
+/usr/bin/wget http://172.17.0.1:8000/myserver/runner.sh
+/usr/bin/wget http://172.17.0.1:8000/myserver/not-free-tests.py
+/usr/bin/wget http://172.17.0.1:8000/myserver/freetests.py
+bash runner.sh
+#+END_SRC
+*** one-run.sh
+#+BEGIN_SRC bash
+#!/bin/bash
+# this runs arb.sh in the container
+file=$1
+two=$2
+docker run -u=me -i -t cmput404 /bin/bash /home/me/arb.sh  `perl 2txt.pl "$file" | perl grepgh.pl` $two | tee $file.out
+#+END_SRC
+*** Dockerfile
+#+BEGIN_EXAMPLE
+FROM ubuntu:18.10
+RUN apt-get update
+RUN apt-get upgrade -y
+RUN apt-get install -y python3 python3-dev python3-setuptools python3-pip curl wget git vim 
+RUN pip3 install django flask-sockets flask gunicorn
+RUN echo -e '\n\n\n\n\n\n\n\n' | adduser --disabled-password --quiet me
+RUN apt-get install -y locales
+RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
+    locale-gen
+ENV LANG en_US.UTF-8  
+ENV LANGUAGE en_US:en  
+ENV LC_ALL en_US.UTF-8     
+USER me
+WORKDIR /home/me
+ADD arb.sh /home/me/arb.sh
+#+END_EXAMPLE
+**** Note the user creation line
+     #+BEGIN_EXAMPLE
+     RUN echo -e '\n\n\n\n\n\n\n\n' | adduser --disabled-password --quiet me
+     #+END_EXAMPLE
+**** Note the USER and WORKDIR line
+     - Make the working dir to be /home/me
+     - Switch to user me
+       #+BEGIN_EXAMPLE
+       USER me
+       WORKDIR /home/me
+       #+END_EXAMPLE
+*** Results?
+    - throws away your repo and everything else
+    - makes a new network interface per test
+    - you could try to scan my network and attack from there.
+    - I could firewall out docker if I wanted to.
+    - I mostly use stdout as IO
+    - I could mount a local dir so I kept a copy of the repo
+** Serious Deployment of a complicated web app
+   - https://bitbucket.org/abram/bugparty-docker/
+   - has to have a big honkin script to manage the whole app
+   - 24 hours of config down to 3 hours of compilation
+   - allows me to deploy copies to the cloud.
+*** base Dockerfile
+#+BEGIN_EXAMPLE
+# Bug-dedup base
+FROM ubuntu:16.04
+
+MAINTAINER Michelle Naylor mnaylor@ualberta.ca
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    python \
+    python-dev \
+    python-pip \
+    git \
+    uuid-dev \
+    sqlite3 \
+    libsqlite3-dev \
+    libtool \
+    automake \
+    libboost-all-dev \
+    logrotate \
+    rsyslog \
+    cmake || echo "Ignoring poor return value"
+# install java
+RUN apt-get install -y \
+    openjdk-8-jdk \
+    openjdk-8-jre
+
+#install perl and python
+RUN apt-get install -y \
+    cpanminus \
+    r-base \
+    littler \
+    wget \
+    python-numpy \
+    python-scipy
+
+# Fix R LOCALE errors
+ENV LANG "en_US.UTF-8"
+
+# SSH key stuff
+RUN mkdir /root/.ssh
+ADD id_rsa /root/.ssh/id_rsa
+RUN touch /root/.ssh/known_hosts
+RUN ssh-keyscan bitbucket.org >> /root/.ssh/known_hosts
+RUN apt-get install -y locales
+RUN locale-gen en_US.UTF-8
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US:en
+ENV LC_ALL en_US.UTF-8
+
+# install perl modules
+RUN cpanm -f Heap::Simple::XS
+
+# python deps
+RUN pip install nltk python-dateutil pyinotify sphinx
+
+RUN cd && mkdir logs
+
+# setup vowpal_wabbit - checkout version 8.2.0
+RUN cd && git clone https://github.com/JohnLangford/vowpal_wabbit.git && \
+    cd vowpal_wabbit && \
+    git checkout tags/8.2.0 && \
+    autoreconf -vfi && \
+    ./configure --with-boost-libdir=/usr/lib/x86_64-linux-gnu && \
+    make -j 8 && make install
+
+# setup flann
+RUN git clone https://github.com/mariusmuja/flann.git && \
+    cd flann && cmake ./ && make && make install
+
+# RUN apt-get -y install libsodium-dev libsodium
+# setup sodium for zeromq
+RUN cd && wget https://download.libsodium.org/libsodium/releases/libsodium-1.0.15.tar.gz
+RUN cd && tar -xzvf libsodium-1.0.15.tar.gz && cd libsodium-1.0.15 && \
+    ./configure && make && make install && cd
+RUN ldconfig
+
+RUN apt-get -y install apt-utils
+RUN apt-get -y install pkg-config
+
+# setup zeromq
+# was 2.1.4
+RUN wget http://download.zeromq.org/zeromq-4.1.4.tar.gz
+RUN tar -xzvf zeromq-4.1.4.tar.gz
+RUN cd zeromq-4.1.4/ && ./configure && make && make install && ldconfig
+# setup zeromq
+
+RUN pip install pyzmq
+
+# RUN apt-get -y install libzmq1 libzmq-dev
+
+# setup mongrel2
+RUN cd && git clone https://github.com/mongrel2/mongrel2.git
+RUN cd && cd mongrel2 && make all install && \
+    cd examples/python && python setup.py install
+
+# run cron for logging
+ADD logrotate_conf /etc/logrotate.d/bugparty
+RUN chmod 644 /etc/logrotate.d/bugparty
+
+ENV LOGNAME docker
+#+END_EXAMPLE
+*** Data container for configs and shared state Dockerfile
+#+BEGIN_EXAMPLE
+FROM ubuntu:16.04
+
+RUN mkdir csv_files
+VOLUME /csv_files
+
+RUN mkdir -p /var/lib/bugparty
+VOLUME /var/lib/bugparty
+
+ADD lmfit/ /csv_files/default
+
+RUN mkdir /var/lib/bugparty/log /var/lib/bugparty/run
+#+END_EXAMPLE
+*** ElasticSearch container Dockerfile
+#+BEGIN_EXAMPLE
+# bug-dedup elasticsearch image 
+FROM mnaylor/base 
+
+MAINTAINER Michelle Naylor mnaylor@ualberta.ca
+
+# get git repos, only relevant branches
+RUN git clone https://bitbucket.org/abram/bp-bug-deduplication.git \
+    -b elasticsearch --single-branch bug-deduplication
+
+# get fastrep
+RUN git clone https://bitbucket.org/abram/fastrep.git --branch elasticsearch \
+    --single-branch
+
+RUN cd bug-deduplication && make
+ENV CLASSPATH ./:./NFR.EXP2:./lib/*
+
+# setup bugparty
+RUN git clone https://bitbucket.org/abram/bugparty.git \
+    --branch mvel
+
+# ES 2 support
+RUN pip install urllib3==1.22
+RUN pip install 'elasticsearch>=1.0.0,<2.0.0'
+WORKDIR bugparty 
+RUN echo "make start &" >> ~/.bashrc 
+ 
+RUN mkdir -p /csv_files /var/lib/bugparty/logs /var/lib/bugparty/run /etc/bugparty 
+ 
+RUN pip install requests 
+ 
+ADD run_server /etc/bugparty/ 
+ADD run_dev_server /etc/bugparty/ 
+ADD bugparty.ini /etc/bugparty/ 
+ADD bugparty-testing.ini /etc/bugparty/ 
+#+END_EXAMPLE
+*** Running it all
+    - this example creates a local network (bp-net)
+    - this example exports ports ( -p option )
+    - this example mounts from a local directory to the container
+    
+#+BEGIN_SRC bash
+docker network create bp-net
+docker run -d -p 127.0.0.1:9200:9200 -p 127.0.0.1:9300:9300  --name $es_name \
+        --net bp-net \
+        --log-opt max-size=50m  \
+        -v $es_volume_location:/usr/share/elasticsearch/data/ \
+        $es_image elasticsearch start
+docker run -d -i --name $data_name $data_image \
+        --log-opt max-size=50m  \
+        /bin/bash
+docker run --rm --name "$bugparty_name" -t -i \
+        -p 127.0.0.1:8080:8080 \
+        --net bp-net \
+        --link $database_name:$database_name \
+        -v "$source_host_dir":/src --volumes-from "$data_name" \
+        --workdir /var/lib/bugparty "$bugparty_image" \
+                /bin/bash /etc/bugparty/run_dev_server /src/bugparty $ini_file
+#+END_SRC
+** Important Options for Docker run
+   - `-p` IP:FROM:TO forward from the container's port to another port
+     - good for hosting services
+     - ports are not exported by default
+   - `--net adockernet` allows the container to access a private network (good for sharing 127.0.0.1)
+   - `-v local_dir:/container_mount ` mount the local_dir (locally) to the container at location /container_mount in the container
+   - `--link` and `--volumes-from` combine docker containers in terms of storage
+     - useful for shared config and state
+   - `-i` interactive
+   - `-t` tag of a container e.g. `-t ubuntu:16.10`
+** Docker commandline
+   - docker run -- run a container (probably -i and -t)
+   - docker rm  -- delete a container
+   - docker rmi -- delete an image
+   - docker images -- see available images
+   - docker ps -- see running containers
+   - docker ps -a -- see old containers
+   - docker start -ai container-name -- get back into an old container
+** WATCH OUT
+   - log files are big
+     - monitor /var/lib/docker
+   - old containers need to be deleted. If you don't tell docker to
+     remove the container after running it stays around.
+   - lots of images are no longer necessary
+** Conclusions
+   - Docker is effecient -- most overhead in IO (5% runtime hit)
+   - Docker allows layered security
+   - Docker allows private networking for an app
+   - Docker allows easier build and deployment
+   - Rigid and replicable configuration of environment
+
