@@ -1,5 +1,5 @@
 # This is python3.7/Dockerfile
-FROM ubuntu:19.04
+FROM ubuntu:19.10
 MAINTAINER Abram Hindle hindle1@ualberta.ca
 RUN apt-get update
 RUN apt-get upgrade -y
